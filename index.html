@@ -1,0 +1,2426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arena.io 3D - P2P Multiplayer (Offer & Answer Codes)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05070a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Rajdhani", Oxygen, Ubuntu, Cantarell, sans-serif;
+      color: #ffffff;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+
+    /* HUD OVERLAY */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 28px;
+    }
+
+    /* Top Stats Segment */
+    .top-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      position: relative;
+    }
+
+    .stats-container {
+      display: flex;
+      gap: 16px;
+      background: rgba(11, 15, 23, 0.88);
+      border: 1px solid #1f2a3e;
+      border-top: 2px solid #00f0ff;
+      border-radius: 6px;
+      padding: 10px 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 240, 255, 0.15);
+      backdrop-filter: blur(8px);
+    }
+
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 105px;
+      padding: 4px 12px;
+      position: relative;
+    }
+
+    .stat-box:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -8px;
+      top: 15%;
+      height: 70%;
+      width: 1px;
+      background: #1e293b;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #718096;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-value.health {
+      color: #00ff88;
+      text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+      transition: color 0.2s ease;
+    }
+
+    .stat-value.health.low {
+      color: #ff3344;
+      text-shadow: 0 0 10px rgba(255, 51, 68, 0.8);
+    }
+
+    .stat-value.eliminations {
+      color: #ff3366;
+      text-shadow: 0 0 8px rgba(255, 51, 102, 0.5);
+    }
+
+    .stat-value.ammo {
+      color: #ffb703;
+      text-shadow: 0 0 8px rgba(255, 183, 3, 0.5);
+    }
+
+    .stat-value.weapon {
+      color: #00f0ff;
+      font-size: 16px;
+      letter-spacing: 1.5px;
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+    }
+
+    .health-bar-bg {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+
+    .health-bar-fill {
+      width: 100%;
+      height: 100%;
+      background: #00ff88;
+      box-shadow: 0 0 6px #00ff88;
+      transition: width 0.15s ease, background-color 0.2s ease;
+    }
+
+    /* Kill Feed */
+    #kill-feed {
+      position: absolute;
+      top: 20px;
+      right: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .kill-feed-entry {
+      background: rgba(15, 23, 42, 0.85);
+      border-left: 3px solid #ff3366;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #f1f5f9;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      animation: feedIn 0.25s ease-out;
+    }
+
+    .kill-feed-entry .killer {
+      color: #00f0ff;
+    }
+
+    .kill-feed-entry .victim {
+      color: #ff3366;
+    }
+
+    @keyframes feedIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Central Reticle */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px;
+      height: 32px;
+      pointer-events: none;
+      transition: transform 0.05s ease-out;
+    }
+
+    .crosshair-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 4px;
+      height: 4px;
+      background-color: #00f0ff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 6px #00f0ff;
+    }
+
+    .crosshair-line {
+      position: absolute;
+      background-color: rgba(0, 240, 255, 0.85);
+      box-shadow: 0 0 4px #00f0ff;
+      transition: all 0.08s ease-out;
+    }
+
+    .ch-top { top: 2px; left: 50%; width: 2px; height: 8px; transform: translateX(-50%); }
+    .ch-bottom { bottom: 2px; left: 50%; width: 2px; height: 8px; transform: translateX(-50%); }
+    .ch-left { left: 2px; top: 50%; width: 8px; height: 2px; transform: translateY(-50%); }
+    .ch-right { right: 2px; top: 50%; width: 8px; height: 2px; transform: translateY(-50%); }
+
+    #crosshair.recoil {
+      transform: translate(-50%, -50%) scale(1.4);
+    }
+    #crosshair.recoil .ch-top { transform: translateX(-50%) translateY(-3px); }
+    #crosshair.recoil .ch-bottom { transform: translateX(-50%) translateY(3px); }
+    #crosshair.recoil .ch-left { transform: translateY(-50%) translateX(-3px); }
+    #crosshair.recoil .ch-right { transform: translateY(-50%) translateX(3px); }
+
+    /* Damage Flash Vignette */
+    #damage-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 15;
+      box-shadow: inset 0 0 80px rgba(255, 0, 50, 0);
+      transition: box-shadow 0.1s ease-out;
+    }
+
+    #damage-overlay.damaged {
+      box-shadow: inset 0 0 100px rgba(255, 0, 50, 0.75);
+    }
+
+    /* Death Screen */
+    #death-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(18, 0, 8, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 40;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .death-title {
+      font-size: 56px;
+      font-weight: 900;
+      color: #ff3344;
+      letter-spacing: 8px;
+      text-shadow: 0 0 30px rgba(255, 51, 68, 0.8);
+      margin-bottom: 12px;
+    }
+
+    .respawn-timer {
+      font-size: 18px;
+      color: #cbd5e1;
+      letter-spacing: 3px;
+    }
+
+    /* Bottom Status Cards */
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+    }
+
+    .hud-card {
+      background: rgba(11, 15, 23, 0.75);
+      border: 1px solid #1a2233;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      backdrop-filter: blur(4px);
+    }
+
+    .hud-card span {
+      color: #00f0ff;
+      font-weight: 700;
+    }
+
+    /* Scoreboard */
+    #scoreboard {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 480px;
+      background: rgba(11, 17, 28, 0.94);
+      border: 1px solid #1f2f4a;
+      border-top: 3px solid #00f0ff;
+      border-radius: 6px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+      padding: 24px;
+      z-index: 35;
+      display: none;
+      backdrop-filter: blur(10px);
+    }
+
+    .sb-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: #00f0ff;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .sb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .sb-table th {
+      text-align: left;
+      padding: 6px 10px;
+      color: #64748b;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .sb-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #0f172a;
+    }
+
+    .sb-table tr.self td {
+      color: #00ff88;
+      font-weight: 700;
+    }
+
+    /* ========================================================
+       SPLASH SCREEN & P2P SETUP INTERFACE
+       ======================================================== */
+    #splash-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, rgba(10, 15, 24, 0.94) 0%, rgba(4, 6, 10, 0.98) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+      transition: opacity 0.25s ease;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .splash-container {
+      text-align: center;
+      background: rgba(13, 19, 30, 0.96);
+      border: 1px solid #1f2f4a;
+      border-top: 3px solid #00f0ff;
+      border-bottom: 3px solid #00f0ff;
+      border-radius: 8px;
+      padding: 28px 38px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 240, 255, 0.15);
+      max-width: 640px;
+      width: 100%;
+    }
+
+    .splash-title {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 5px;
+      color: #ffffff;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      text-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+    }
+
+    .splash-subtitle {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: #00f0ff;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    /* TERRAIN SELECTION ROW */
+    .section-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      text-align: left;
+    }
+
+    .terrain-selector-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .terrain-btn {
+      flex: 1;
+      background: #111827;
+      border: 2px solid #1f293d;
+      border-radius: 6px;
+      padding: 12px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      color: #cbd5e1;
+    }
+
+    .terrain-btn:hover {
+      border-color: #38bdf8;
+    }
+
+    .terrain-btn.active {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.1);
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.35);
+      color: #00f0ff;
+    }
+
+    .terrain-btn .t-title {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .terrain-btn .t-file {
+      font-size: 10px;
+      font-family: monospace;
+      color: #64748b;
+    }
+    .terrain-btn.active .t-file {
+      color: #7dd3fc;
+    }
+
+    .callsign-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 6px 12px;
+    }
+
+    .callsign-input {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 4px;
+      color: #00f0ff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      padding: 6px 12px;
+      text-align: center;
+      width: 170px;
+      outline: none;
+    }
+    .callsign-input:focus {
+      border-color: #00f0ff;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    }
+
+    /* P2P TABS (Host vs Join) */
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: #111827;
+      border: 1px solid #1f293d;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 9px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: #00f0ff;
+      color: #05070a;
+      border-color: #00f0ff;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+    }
+
+    .tab-pane {
+      display: none;
+      text-align: left;
+      margin-bottom: 14px;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+
+    .step-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+
+    .step-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #00f0ff;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .code-textarea {
+      width: 100%;
+      height: 58px;
+      background: #0a0e17;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      color: #f1f5f9;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 6px 8px;
+      resize: none;
+      outline: none;
+      word-break: break-all;
+    }
+    .code-textarea:focus {
+      border-color: #00f0ff;
+    }
+
+    .action-btn {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 5px 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s ease;
+    }
+    .action-btn:hover {
+      background: #00f0ff;
+      color: #05070a;
+      border-color: #00f0ff;
+    }
+
+    .action-btn.primary {
+      background: #00f0ff;
+      color: #05070a;
+      border-color: #00f0ff;
+      font-weight: 800;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+    }
+    .action-btn.primary:hover {
+      background: #38bdf8;
+    }
+
+    .p2p-status-badge {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-align: center;
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 14px;
+      background: #111827;
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+    }
+    .p2p-status-badge.connected {
+      color: #00ff88;
+      border-color: #00ff88;
+      box-shadow: 0 0 16px rgba(0, 255, 136, 0.3);
+    }
+
+    .play-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+
+    .play-btn {
+      flex: 1;
+      background: #00ff88;
+      color: #060910;
+      font-weight: 900;
+      font-size: 15px;
+      letter-spacing: 2.5px;
+      padding: 13px 20px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .play-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 28px rgba(0, 255, 136, 0.7);
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      text-align: left;
+      border-top: 1px solid #1a273b;
+      padding-top: 12px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .key-badge {
+      background: #1e293b;
+      color: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      border: 1px solid #334155;
+    }
+
+    .model-status {
+      margin-top: 12px;
+      font-size: 11px;
+      color: #64748b;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Three.js Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Damage Screen Flash -->
+  <div id="damage-overlay"></div>
+
+  <!-- Death Overlay Screen -->
+  <div id="death-overlay">
+    <div class="death-title">ELIMINATED</div>
+    <div class="respawn-timer" id="respawn-timer-text">Respawning in 3s...</div>
+  </div>
+
+  <!-- Scoreboard (TAB) -->
+  <div id="scoreboard">
+    <div class="sb-title">Arena Leaderboard</div>
+    <table class="sb-table">
+      <thead>
+        <tr>
+          <th>PLAYER</th>
+          <th>STATUS</th>
+          <th style="text-align: right;">ELIMINATIONS</th>
+        </tr>
+      </thead>
+      <tbody id="scoreboard-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Kill Feed -->
+  <div id="kill-feed"></div>
+
+  <!-- HUD Interface -->
+  <div id="hud">
+    <!-- Top Stats Segment -->
+    <div class="top-bar">
+      <div class="stats-container">
+        <!-- Health -->
+        <div class="stat-box">
+          <div class="stat-label">Health</div>
+          <div class="stat-value health" id="ui-health">100</div>
+          <div class="health-bar-bg">
+            <div class="health-bar-fill" id="ui-health-bar"></div>
+          </div>
+        </div>
+
+        <!-- Eliminations -->
+        <div class="stat-box">
+          <div class="stat-label">Eliminations</div>
+          <div class="stat-value eliminations" id="ui-eliminations">0</div>
+        </div>
+
+        <!-- Ammo -->
+        <div class="stat-box">
+          <div class="stat-label">Ammo</div>
+          <div class="stat-value ammo" id="ui-ammo">∞</div>
+        </div>
+
+        <!-- Weapon -->
+        <div class="stat-box">
+          <div class="stat-label">Weapon</div>
+          <div class="stat-value weapon" id="ui-weapon">Rockets Gun</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Central Crosshair Reticle -->
+    <div id="crosshair">
+      <div class="crosshair-dot"></div>
+      <div class="crosshair-line ch-top"></div>
+      <div class="crosshair-line ch-bottom"></div>
+      <div class="crosshair-line ch-left"></div>
+      <div class="crosshair-line ch-right"></div>
+    </div>
+
+    <!-- Bottom Status Cards -->
+    <div class="bottom-bar">
+      <div class="hud-card" id="terrain-status-tag">
+        TERRAIN: <span id="terrain-status-text">ROCK_TERRAIN.GLB</span>
+      </div>
+      <div class="hud-card" id="network-status-tag">
+        P2P STATUS: <span id="network-status-text" style="color: #00ff88;">READY</span>
+      </div>
+      <div class="hud-card" id="skin-status-tag">
+        SKIN: <span id="skin-status-text" style="color: #00ff88;">BULLETSTORM SOLDIER</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Splash / Setup Screen -->
+  <div id="splash-overlay">
+    <div class="splash-container">
+      <div class="splash-title">Arena.io 3D</div>
+      <div class="splash-subtitle">WebRTC Peer-to-Peer Soldier Combat</div>
+
+      <!-- Choose Terrain Before Starting -->
+      <div class="section-label">Select Arena Terrain:</div>
+      <div class="terrain-selector-row">
+        <div class="terrain-btn active" id="btn-terrain-rock" data-terrain="rock_terrain.glb">
+          <div class="t-title">🏔️ Rock Terrain</div>
+          <div class="t-file">rock_terrain.glb</div>
+        </div>
+        <div class="terrain-btn" id="btn-terrain-white" data-terrain="white-mesh.glb">
+          <div class="t-title">⚪ White Mesh</div>
+          <div class="t-file">white-mesh.glb</div>
+        </div>
+      </div>
+
+      <!-- Callsign Row -->
+      <div class="callsign-row">
+        <span style="font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 1px;">PLAYER CALLSIGN:</span>
+        <input type="text" id="player-name-input" class="callsign-input" placeholder="Soldier" maxlength="14" value="Soldier" />
+      </div>
+
+      <!-- P2P Tabs -->
+      <div class="tab-bar">
+        <button type="button" class="tab-btn active" id="tab-host-btn">1. Host Game (Create Offer)</button>
+        <button type="button" class="tab-btn" id="tab-join-btn">2. Join Game (Answer Code)</button>
+      </div>
+
+      <!-- HOST TAB PANE -->
+      <div class="tab-pane active" id="pane-host">
+        <div class="step-box">
+          <div class="step-title">
+            <span>Step 1: Your Host Offer Code (Send to Joinee)</span>
+            <button type="button" class="action-btn" id="copy-offer-btn">📋 Copy Code</button>
+          </div>
+          <textarea id="host-offer-textarea" class="code-textarea" readonly placeholder="Generating Host Offer Code..."></textarea>
+        </div>
+
+        <div class="step-box">
+          <div class="step-title">
+            <span>Step 2: Paste Joinee's Answer Code Here</span>
+            <button type="button" class="action-btn primary" id="connect-answer-btn">Connect Peer</button>
+          </div>
+          <textarea id="host-answer-input" class="code-textarea" placeholder="Paste the Answer Code received from your friend here..."></textarea>
+        </div>
+      </div>
+
+      <!-- JOIN TAB PANE -->
+      <div class="tab-pane" id="pane-join">
+        <div class="step-box">
+          <div class="step-title">
+            <span>Step 1: Paste Host's Offer Code</span>
+            <button type="button" class="action-btn primary" id="generate-answer-btn">Generate Answer</button>
+          </div>
+          <textarea id="join-offer-input" class="code-textarea" placeholder="Paste the Host's Offer Code here..."></textarea>
+        </div>
+
+        <div class="step-box">
+          <div class="step-title">
+            <span>Step 2: Your Answer Code (Send Back to Host)</span>
+            <button type="button" class="action-btn" id="copy-answer-btn">📋 Copy Code</button>
+          </div>
+          <textarea id="join-answer-textarea" class="code-textarea" readonly placeholder="Click 'Generate Answer' after pasting Host code..."></textarea>
+        </div>
+      </div>
+
+      <!-- P2P Status Indicator -->
+      <div class="p2p-status-badge" id="p2p-status-box">
+        P2P STATUS: READY (SOLO & MULTIPLAYER ACTIVE)
+      </div>
+
+      <!-- Play Button -->
+      <div class="play-row">
+        <div class="play-btn" id="play-button">Enter Arena & Play</div>
+      </div>
+
+      <!-- Controls Grid -->
+      <div class="controls-grid">
+        <div class="control-item">
+          <span class="key-badge">W A S D</span>
+          <span>Move Soldier</span>
+        </div>
+        <div class="control-item">
+          <span class="key-badge">MOUSE</span>
+          <span>Aim Look Vector</span>
+        </div>
+        <div class="control-item">
+          <span class="key-badge">LEFT CLICK</span>
+          <span>Fire Rocket Gun</span>
+        </div>
+        <div class="control-item">
+          <span class="key-badge">TAB</span>
+          <span>View Scoreboard</span>
+        </div>
+      </div>
+
+      <div class="model-status" id="model-status-info">
+        Soldier Skin: bulletstorm_-_final_echo_elite_soldier.glb
+      </div>
+    </div>
+  </div>
+
+  <!-- Synchronous Three.js, SkeletonUtils, and GLTFLoader Script Tags -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+
+  <!-- Complete WebRTC P2P Game Loop & Engine -->
+  <script>
+    (function () {
+      // ----------------------------------------------------
+      // GAME CONSTANTS & STATE
+      // ----------------------------------------------------
+      const ARENA_SIZE = 120;
+      const HALF_ARENA = ARENA_SIZE / 2;
+      const PLAYER_HEIGHT = 1.75;
+      const MOVE_SPEED = 14.0;
+      const SPRINT_MULTIPLIER = 1.6;
+      const FRICTION = 10.0;
+      const MOUSE_SENSITIVITY = 0.0022;
+
+      const selfId = 'peer_' + Math.random().toString(36).substring(2, 9);
+      let selfName = 'Soldier_' + Math.floor(100 + Math.random() * 900);
+      let selfHealth = 100;
+      let selfEliminations = 0;
+      let isDead = false;
+
+      // Chosen terrain before starting
+      let selectedTerrain = 'rock_terrain.glb';
+
+      // Remote player registry: id -> { mesh, data, targetPos, targetYaw, health, plate }
+      const remotePlayers = new Map();
+
+      // ----------------------------------------------------
+      // THREE.JS SCENE SETUP
+      // ----------------------------------------------------
+      const canvas = document.getElementById('webgl-canvas');
+      const renderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x07090e);
+      scene.fog = new THREE.FogExp2(0x07090e, 0.012);
+
+      // Camera
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const spawnAngle = Math.random() * Math.PI * 2;
+      const spawnDist = 12 + Math.random() * 20;
+      camera.position.set(Math.cos(spawnAngle) * spawnDist, PLAYER_HEIGHT, Math.sin(spawnAngle) * spawnDist);
+      scene.add(camera);
+
+      // ----------------------------------------------------
+      // LIGHTING
+      // ----------------------------------------------------
+      const ambientLight = new THREE.AmbientLight(0xdde5ff, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xfff8ee, 1.45);
+      directionalLight.position.set(35, 50, 30);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.width = 2048;
+      directionalLight.shadow.mapSize.height = 2048;
+      directionalLight.shadow.camera.near = 0.5;
+      directionalLight.shadow.camera.far = 180;
+      directionalLight.shadow.camera.left = -70;
+      directionalLight.shadow.camera.right = 70;
+      directionalLight.shadow.camera.top = 70;
+      directionalLight.shadow.camera.bottom = -70;
+      directionalLight.shadow.bias = -0.0005;
+      scene.add(directionalLight);
+
+      const bluePointLight = new THREE.PointLight(0x00f0ff, 2.5, 80);
+      bluePointLight.position.set(-38, 14, -38);
+      scene.add(bluePointLight);
+
+      const amberPointLight = new THREE.PointLight(0xffb703, 2.2, 80);
+      amberPointLight.position.set(38, 14, 38);
+      scene.add(amberPointLight);
+
+      // ----------------------------------------------------
+      // TERRAIN INTEGRATION (rock_terrain.glb OR white-mesh.glb)
+      // ----------------------------------------------------
+      const gltfLoader = new THREE.GLTFLoader();
+      let currentTerrainGroup = new THREE.Group();
+      scene.add(currentTerrainGroup);
+
+      const terrainMeshes = [];
+      const downRaycaster = new THREE.Raycaster();
+      const downDir = new THREE.Vector3(0, -1, 0);
+
+      function getTerrainElevation(x, z) {
+        if (terrainMeshes.length === 0) return 0;
+        downRaycaster.set(new THREE.Vector3(x, 80, z), downDir);
+        const hits = downRaycaster.intersectObjects(terrainMeshes, true);
+        if (hits.length > 0) return hits[0].point.y;
+        return 0;
+      }
+
+      // Procedural fallback generators if .glb files are blocked or not yet in folder
+      function createProceduralRockTerrain() {
+        const group = new THREE.Group();
+        const groundGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE, 32, 32);
+        const groundMat = new THREE.MeshStandardMaterial({
+          color: 0x121822,
+          roughness: 0.85,
+          metalness: 0.2
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        group.add(ground);
+        return group;
+      }
+
+      function createProceduralWhiteMeshTerrain() {
+        const group = new THREE.Group();
+        // White mesh terrain
+        const groundGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE, 40, 40);
+        // Subtle undulating vertices for high-tech aesthetic
+        const pos = groundGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i);
+          const vy = pos.getY(i);
+          const heightOffset = Math.sin(vx * 0.08) * Math.cos(vy * 0.08) * 0.6;
+          pos.setZ(i, heightOffset);
+        }
+        groundGeo.computeVertexNormals();
+
+        const groundMat = new THREE.MeshStandardMaterial({
+          color: 0xf8fafc,
+          roughness: 0.2,
+          metalness: 0.05,
+          flatShading: true
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        group.add(ground);
+
+        // White wireframe overlay
+        const wireMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, wireframe: true, transparent: true, opacity: 0.35 });
+        const wire = new THREE.Mesh(groundGeo, wireMat);
+        wire.rotation.x = -Math.PI / 2;
+        wire.position.y = 0.02;
+        group.add(wire);
+
+        return group;
+      }
+
+      function loadSelectedTerrain(terrainFileName) {
+        selectedTerrain = terrainFileName;
+        document.getElementById('terrain-status-text').textContent = terrainFileName.toUpperCase();
+
+        // Clear existing terrain objects
+        while (currentTerrainGroup.children.length > 0) {
+          const child = currentTerrainGroup.children[0];
+          currentTerrainGroup.remove(child);
+        }
+        terrainMeshes.length = 0;
+
+        // Load the chosen GLB
+        gltfLoader.load(
+          terrainFileName,
+          function (gltf) {
+            const model = gltf.scene;
+            const bbox = new THREE.Box3().setFromObject(model);
+            const size = bbox.getSize(new THREE.Vector3());
+            const center = bbox.getCenter(new THREE.Vector3());
+
+            const maxHoriz = Math.max(size.x, size.z);
+            const scaleFactor = maxHoriz > 0 ? (ARENA_SIZE / maxHoriz) : 1.0;
+
+            model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            model.position.set(
+              -center.x * scaleFactor,
+              -bbox.min.y * scaleFactor,
+              -center.z * scaleFactor
+            );
+
+            model.traverse((child) => {
+              if (child.isMesh) {
+                child.receiveShadow = true;
+                child.castShadow = true;
+                terrainMeshes.push(child);
+              }
+            });
+
+            currentTerrainGroup.add(model);
+            console.log(`[Terrain] Loaded ${terrainFileName} successfully.`);
+          },
+          null,
+          function (err) {
+            console.warn(`[Terrain] ${terrainFileName} not found or blocked. Using styled procedural terrain.`, err);
+            let procedural = null;
+            if (terrainFileName.includes('white')) {
+              procedural = createProceduralWhiteMeshTerrain();
+            } else {
+              procedural = createProceduralRockTerrain();
+            }
+
+            procedural.traverse((c) => {
+              if (c.isMesh) {
+                c.receiveShadow = true;
+                terrainMeshes.push(c);
+              }
+            });
+            currentTerrainGroup.add(procedural);
+          }
+        );
+      }
+
+      // Initial terrain load
+      loadSelectedTerrain(selectedTerrain);
+
+      // Perimeter Walls
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x0b111a, roughness: 0.4, metalness: 0.7 });
+      const wallH = 7;
+      const wallThick = 2;
+
+      function createWall(x, z, w, d) {
+        const wallGeo = new THREE.BoxGeometry(w, wallH, d);
+        const wall = new THREE.Mesh(wallGeo, wallMat);
+        wall.position.set(x, wallH / 2, z);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+
+        const rimGeo = new THREE.BoxGeometry(w, 0.15, d);
+        const rimMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+        const rim = new THREE.Mesh(rimGeo, rimMat);
+        rim.position.set(x, wallH + 0.08, z);
+        scene.add(rim);
+        return wall;
+      }
+
+      createWall(0, -HALF_ARENA, ARENA_SIZE, wallThick);
+      createWall(0, HALF_ARENA, ARENA_SIZE, wallThick);
+      createWall(-HALF_ARENA, 0, wallThick, ARENA_SIZE);
+      createWall(HALF_ARENA, 0, wallThick, ARENA_SIZE);
+
+      // Cover Barriers
+      const obstacleColliders = [];
+      const colMaterials = [
+        new THREE.MeshStandardMaterial({ color: 0x121926, roughness: 0.35, metalness: 0.75 }),
+        new THREE.MeshStandardMaterial({ color: 0x182030, roughness: 0.4, metalness: 0.6 })
+      ];
+
+      for (let i = 0; i < 12; i++) {
+        const width = 2.4 + Math.random() * 2.6;
+        const depth = 2.4 + Math.random() * 2.6;
+        const height = 4.5 + Math.random() * 5.0;
+
+        let posX = 0, posZ = 0;
+        let dist = 0;
+        do {
+          posX = (Math.random() - 0.5) * (ARENA_SIZE - 26);
+          posZ = (Math.random() - 0.5) * (ARENA_SIZE - 26);
+          dist = Math.hypot(posX, posZ);
+        } while (dist < 10);
+
+        const colGeo = new THREE.BoxGeometry(width, height, depth);
+        const colMesh = new THREE.Mesh(colGeo, colMaterials[i % colMaterials.length]);
+        colMesh.position.set(posX, height / 2, posZ);
+        colMesh.castShadow = true;
+        colMesh.receiveShadow = true;
+        scene.add(colMesh);
+
+        obstacleColliders.push({
+          x: posX,
+          z: posZ,
+          radius: Math.max(width, depth) / 2 + 0.6,
+          mesh: colMesh
+        });
+      }
+
+      // ----------------------------------------------------
+      // SOLDIER SKIN INTEGRATION: bulletstorm_-_final_echo_elite_soldier.glb
+      // GUARANTEED VISIBILITY OF ALL OTHER PLAYERS
+      // ----------------------------------------------------
+      let soldierTemplateModel = null;
+      const pendingPlayerSpawns = [];
+
+      // Fallback high-visibility cyber soldier mesh if model is loading
+      function createPlaceholderSoldierMesh() {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.3, metalness: 0.8 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+
+        // Torso
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), darkMat);
+        torso.position.y = 1.1;
+        torso.castShadow = true;
+        group.add(torso);
+
+        // Head + glowing visor
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), darkMat);
+        head.position.y = 1.6;
+        group.add(head);
+
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.1), new THREE.MeshBasicMaterial({ color: 0x00f0ff }));
+        visor.position.set(0, 1.6, 0.15);
+        group.add(visor);
+
+        // Legs
+        const legGeo = new THREE.BoxGeometry(0.18, 0.75, 0.2);
+        const legL = new THREE.Mesh(legGeo, mat);
+        legL.position.set(-0.16, 0.38, 0);
+        group.add(legL);
+
+        const legR = new THREE.Mesh(legGeo, mat);
+        legR.position.set(0.16, 0.38, 0);
+        group.add(legR);
+
+        return group;
+      }
+
+      function setupSoldierTemplate(model) {
+        soldierTemplateModel = model;
+
+        // Normalize scale to 1.8 units human height
+        const bbox = new THREE.Box3().setFromObject(soldierTemplateModel);
+        const size = bbox.getSize(new THREE.Vector3());
+        const height = size.y;
+        const targetScale = height > 0 ? (1.8 / height) : 1.0;
+        soldierTemplateModel.scale.set(targetScale, targetScale, targetScale);
+
+        // CRITICAL FOR VISIBILITY:
+        // Skinned meshes in Three.js MUST have frustumCulled = false,
+        // otherwise they disappear when camera looks near them!
+        soldierTemplateModel.traverse((child) => {
+          if (child.isMesh) {
+            child.frustumCulled = false;
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material) {
+              child.material.side = THREE.DoubleSide;
+              child.material.depthWrite = true;
+              child.material.transparent = false;
+              child.material.opacity = 1.0;
+              child.material.needsUpdate = true;
+            }
+          }
+        });
+
+        console.log('[Skin] Soldier template configured with frustumCulled=false and full visibility!');
+
+        // Update any existing entities that were using placeholder
+        remotePlayers.forEach((p, id) => {
+          replaceEntityWithSoldierModel(p);
+        });
+
+        // Spawn any pending players
+        pendingPlayerSpawns.forEach((pData) => spawnSoldierEntity(pData));
+        pendingPlayerSpawns.length = 0;
+      }
+
+      // Load soldier model: try primary filename, then fallback filenames
+      function loadSoldierSkin() {
+        const skinFiles = [
+          'bulletstorm_-_final_echo_elite_soldier.glb',
+          'bulletstorm_-_final_echo_elite_soldier-1f35.glb',
+          'soldier.glb'
+        ];
+
+        let index = 0;
+        function tryNext() {
+          if (index >= skinFiles.length) {
+            console.warn('[Skin] Could not load GLB file, keeping cyber soldier fallback.');
+            return;
+          }
+          const file = skinFiles[index++];
+          gltfLoader.load(
+            file,
+            function (gltf) {
+              setupSoldierTemplate(gltf.scene);
+            },
+            null,
+            function (err) {
+              console.warn(`[Skin] Could not load ${file}, trying next...`);
+              tryNext();
+            }
+          );
+        }
+        tryNext();
+      }
+
+      loadSoldierSkin();
+
+      // Floating Nameplate + Health Bar billboarded above player head
+      function createFloatingPlayerPlate(name) {
+        const plateGroup = new THREE.Group();
+        plateGroup.position.set(0, 2.3, 0);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgba(11, 15, 23, 0.88)';
+        ctx.fillRect(0, 0, 256, 64);
+        ctx.fillStyle = '#00f0ff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(name, 128, 32);
+
+        const textTexture = new THREE.CanvasTexture(canvas);
+        const spriteMat = new THREE.SpriteMaterial({ map: textTexture, depthTest: false });
+        const nameSprite = new THREE.Sprite(spriteMat);
+        nameSprite.scale.set(1.4, 0.35, 1);
+        nameSprite.position.set(0, 0.22, 0);
+        plateGroup.add(nameSprite);
+
+        const barBgGeo = new THREE.PlaneGeometry(1.2, 0.1);
+        const barBgMat = new THREE.MeshBasicMaterial({ color: 0x334155, depthTest: false });
+        const barBg = new THREE.Mesh(barBgGeo, barBgMat);
+        plateGroup.add(barBg);
+
+        const barFillGeo = new THREE.PlaneGeometry(1.2, 0.1);
+        const barFillMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, depthTest: false });
+        const barFill = new THREE.Mesh(barFillGeo, barFillMat);
+        barFill.position.z = 0.01;
+        plateGroup.add(barFill);
+
+        plateGroup.userData = {
+          barFill,
+          updateHealth: function (pct) {
+            barFill.scale.x = Math.max(0, Math.min(1, pct));
+            barFill.position.x = -(1 - barFill.scale.x) * 0.6;
+            if (pct < 0.3) barFill.material.color.setHex(0xff3344);
+            else if (pct < 0.6) barFill.material.color.setHex(0xffb703);
+            else barFill.material.color.setHex(0x00ff88);
+          }
+        };
+
+        return plateGroup;
+      }
+
+      function spawnSoldierEntity(pData) {
+        if (remotePlayers.has(pData.id)) {
+          const existing = remotePlayers.get(pData.id);
+          existing.mesh.visible = true;
+          return;
+        }
+
+        let soldierMesh = null;
+        if (soldierTemplateModel) {
+          soldierMesh = THREE.SkeletonUtils ? THREE.SkeletonUtils.clone(soldierTemplateModel) : soldierTemplateModel.clone(true);
+        } else {
+          soldierMesh = createPlaceholderSoldierMesh();
+        }
+
+        // Compute ground elevation so feet are firmly planted on the surface
+        const groundY = getTerrainElevation(pData.x, pData.z);
+        soldierMesh.position.set(pData.x, groundY, pData.z);
+        soldierMesh.rotation.y = pData.yaw || 0;
+        soldierMesh.visible = true;
+
+        // Ensure frustum culling is disabled on all submeshes for 100% visibility
+        soldierMesh.traverse((child) => {
+          if (child.isMesh) {
+            child.frustumCulled = false;
+            child.userData.playerId = pData.id;
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        soldierMesh.userData = {
+          playerId: pData.id,
+          isPlayerHitbox: true,
+          walkAnimTimer: Math.random() * 10
+        };
+
+        const plate = createFloatingPlayerPlate(pData.name);
+        soldierMesh.add(plate);
+
+        scene.add(soldierMesh);
+
+        remotePlayers.set(pData.id, {
+          mesh: soldierMesh,
+          plate: plate,
+          data: pData,
+          targetPos: new THREE.Vector3(pData.x, groundY, pData.z),
+          targetYaw: pData.yaw || 0,
+          isMoving: false,
+          health: pData.health || 100
+        });
+
+        updateScoreboard();
+        console.log(`[Spawn] Soldier entity spawned for ${pData.name} at (${pData.x.toFixed(1)}, ${groundY.toFixed(1)}, ${pData.z.toFixed(1)})`);
+      }
+
+      function replaceEntityWithSoldierModel(entity) {
+        if (!soldierTemplateModel || !entity.mesh) return;
+
+        const oldPos = entity.mesh.position.clone();
+        const oldRot = entity.mesh.rotation.y;
+        scene.remove(entity.mesh);
+
+        const newMesh = THREE.SkeletonUtils ? THREE.SkeletonUtils.clone(soldierTemplateModel) : soldierTemplateModel.clone(true);
+        newMesh.position.copy(oldPos);
+        newMesh.rotation.y = oldRot;
+        newMesh.visible = true;
+
+        newMesh.traverse((child) => {
+          if (child.isMesh) {
+            child.frustumCulled = false;
+            child.userData.playerId = entity.data.id;
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        const plate = createFloatingPlayerPlate(entity.data.name);
+        newMesh.add(plate);
+        scene.add(newMesh);
+
+        entity.mesh = newMesh;
+        entity.plate = plate;
+      }
+
+      // ----------------------------------------------------
+      // WEAPON RIG (ROCKETS GUN - FIRST PERSON VIEW)
+      // ----------------------------------------------------
+      const weaponRig = new THREE.Group();
+      camera.add(weaponRig);
+
+      const restPosition = new THREE.Vector3(0.28, -0.26, -0.46);
+      const restRotation = new THREE.Euler(0.04, Math.PI, 0);
+
+      weaponRig.position.copy(restPosition);
+      weaponRig.rotation.copy(restRotation);
+
+      let currentWeaponModel = null;
+
+      function createFallbackWeapon() {
+        const fallbackGroup = new THREE.Group();
+        const bodyGeo = new THREE.BoxGeometry(0.14, 0.16, 0.55);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x161c28, roughness: 0.3, metalness: 0.85 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.castShadow = true;
+        fallbackGroup.add(body);
+
+        const barrelGeo = new THREE.CylinderGeometry(0.038, 0.038, 0.6, 16);
+        const barrelMat = new THREE.MeshStandardMaterial({ color: 0x222a3a, roughness: 0.25, metalness: 0.95 });
+
+        const b1 = new THREE.Mesh(barrelGeo, barrelMat);
+        b1.rotation.x = Math.PI / 2;
+        b1.position.set(-0.04, 0.04, 0.06);
+        fallbackGroup.add(b1);
+
+        const b2 = new THREE.Mesh(barrelGeo, barrelMat);
+        b2.rotation.x = Math.PI / 2;
+        b2.position.set(0.04, 0.04, 0.06);
+        fallbackGroup.add(b2);
+
+        const stripeGeo = new THREE.BoxGeometry(0.145, 0.02, 0.4);
+        const stripeMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+        const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+        stripe.position.set(0, 0.09, -0.05);
+        fallbackGroup.add(stripe);
+
+        return fallbackGroup;
+      }
+
+      gltfLoader.load(
+        'rockets_gun.glb',
+        function (gltf) {
+          currentWeaponModel = gltf.scene;
+          const bbox = new THREE.Box3().setFromObject(currentWeaponModel);
+          const size = bbox.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const targetScale = maxDim > 0 ? (0.65 / maxDim) : 0.35;
+
+          currentWeaponModel.scale.set(targetScale, targetScale, targetScale);
+          const center = bbox.getCenter(new THREE.Vector3());
+          currentWeaponModel.position.set(
+            -center.x * targetScale,
+            -center.y * targetScale,
+            -center.z * targetScale
+          );
+
+          currentWeaponModel.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+
+          weaponRig.add(currentWeaponModel);
+        },
+        null,
+        function (err) {
+          currentWeaponModel = createFallbackWeapon();
+          weaponRig.add(currentWeaponModel);
+        }
+      );
+
+      // Recoil
+      const recoilOffset = new THREE.Vector3(0, 0, 0);
+      const recoilRotation = new THREE.Vector3(0, 0, 0);
+      let walkBobTimer = 0;
+
+      function triggerRecoil() {
+        recoilOffset.z += 0.12;
+        recoilOffset.y += 0.035;
+        recoilOffset.x += (Math.random() - 0.5) * 0.02;
+
+        recoilRotation.x += 0.14;
+        recoilRotation.y += (Math.random() - 0.5) * 0.05;
+
+        const ch = document.getElementById('crosshair');
+        ch.classList.add('recoil');
+        setTimeout(() => ch.classList.remove('recoil'), 100);
+      }
+
+      // ----------------------------------------------------
+      // WEBRTC P2P CODE SIGNALING (OFFER CODE & ANSWER CODE)
+      // ----------------------------------------------------
+      const rtcConfig = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      };
+
+      let peerConnection = null;
+      let dataChannel = null;
+
+      const p2pStatusBox = document.getElementById('p2p-status-box');
+      const networkStatusText = document.getElementById('network-status-text');
+
+      function encodeSdp(desc) {
+        return btoa(unescape(encodeURIComponent(JSON.stringify(desc))));
+      }
+
+      function decodeSdp(str) {
+        return JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
+      }
+
+      function setupDataChannelEvents(channel) {
+        dataChannel = channel;
+
+        dataChannel.onopen = () => {
+          console.log('[P2P] WebRTC DataChannel opened successfully!');
+          p2pStatusBox.textContent = 'P2P CONNECTED! OTHER PLAYER ONLINE';
+          p2pStatusBox.classList.add('connected');
+
+          networkStatusText.textContent = 'P2P CONNECTED (DIRECT)';
+          networkStatusText.style.color = '#00ff88';
+
+          // Send intro and terrain sync
+          sendP2P({
+            type: 'p2p_intro',
+            id: selfId,
+            name: selfName,
+            x: camera.position.x,
+            y: camera.position.y,
+            z: camera.position.z,
+            yaw: camera.rotation.y,
+            terrain: selectedTerrain,
+            health: selfHealth
+          });
+
+          addKillFeed('Direct Peer Connected', '', false);
+        };
+
+        dataChannel.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleP2PMessage(data);
+          } catch (e) {
+            console.error('P2P parse error:', e);
+          }
+        };
+
+        dataChannel.onclose = () => {
+          p2pStatusBox.textContent = 'P2P PEER DISCONNECTED';
+          p2pStatusBox.classList.remove('connected');
+          networkStatusText.textContent = 'P2P DISCONNECTED';
+          networkStatusText.style.color = '#ff3366';
+        };
+      }
+
+      function sendP2P(data) {
+        if (dataChannel && dataChannel.readyState === 'open') {
+          try {
+            dataChannel.send(JSON.stringify(data));
+          } catch (e) {}
+        }
+      }
+
+      // --- HOST FLOW ---
+      async function createHostOffer() {
+        try {
+          peerConnection = new RTCPeerConnection(rtcConfig);
+          const channel = peerConnection.createDataChannel('arena_io_channel');
+          setupDataChannelEvents(channel);
+
+          const offerTextarea = document.getElementById('host-offer-textarea');
+          offerTextarea.value = 'Generating ICE candidates and Offer Code...';
+
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+
+          await new Promise((resolve) => {
+            if (peerConnection.iceGatheringState === 'complete') {
+              resolve();
+            } else {
+              const checkState = () => {
+                if (peerConnection.iceGatheringState === 'complete') {
+                  peerConnection.removeEventListener('icegatheringstatechange', checkState);
+                  resolve();
+                }
+              };
+              peerConnection.addEventListener('icegatheringstatechange', checkState);
+              setTimeout(resolve, 1500);
+            }
+          });
+
+          const offerCode = encodeSdp(peerConnection.localDescription);
+          offerTextarea.value = offerCode;
+          p2pStatusBox.textContent = 'HOST OFFER CODE READY: SEND IT TO YOUR FRIEND';
+        } catch (err) {
+          console.error('Error creating offer:', err);
+          document.getElementById('host-offer-textarea').value = 'Error creating offer: ' + err.message;
+        }
+      }
+
+      async function acceptJoineeAnswer() {
+        const answerInput = document.getElementById('host-answer-input').value.trim();
+        if (!answerInput) {
+          alert('Please paste the Joinee Answer Code first!');
+          return;
+        }
+        try {
+          const answerSdp = decodeSdp(answerInput);
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(answerSdp));
+          p2pStatusBox.textContent = 'ANSWER ACCEPTED: FINALIZING PEER CONNECTION...';
+        } catch (err) {
+          alert('Invalid Answer Code: ' + err.message);
+        }
+      }
+
+      // --- JOIN FLOW ---
+      async function createJoineeAnswer() {
+        const offerInput = document.getElementById('join-offer-input').value.trim();
+        if (!offerInput) {
+          alert("Please paste the Host's Offer Code first!");
+          return;
+        }
+
+        try {
+          peerConnection = new RTCPeerConnection(rtcConfig);
+          peerConnection.ondatachannel = (event) => {
+            setupDataChannelEvents(event.channel);
+          };
+
+          const answerTextarea = document.getElementById('join-answer-textarea');
+          answerTextarea.value = 'Generating Answer Code...';
+
+          const offerSdp = decodeSdp(offerInput);
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(offerSdp));
+
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+
+          await new Promise((resolve) => {
+            if (peerConnection.iceGatheringState === 'complete') {
+              resolve();
+            } else {
+              const checkState = () => {
+                if (peerConnection.iceGatheringState === 'complete') {
+                  peerConnection.removeEventListener('icegatheringstatechange', checkState);
+                  resolve();
+                }
+              };
+              peerConnection.addEventListener('icegatheringstatechange', checkState);
+              setTimeout(resolve, 1500);
+            }
+          });
+
+          const answerCode = encodeSdp(peerConnection.localDescription);
+          answerTextarea.value = answerCode;
+          p2pStatusBox.textContent = 'ANSWER CODE GENERATED: SEND IT BACK TO HOST';
+        } catch (err) {
+          alert('Error processing Offer Code: ' + err.message);
+        }
+      }
+
+      // ----------------------------------------------------
+      // P2P MESSAGE HANDLER
+      // ----------------------------------------------------
+      function handleP2PMessage(data) {
+        if (!data || data.id === selfId) return;
+
+        switch (data.type) {
+          case 'p2p_intro':
+            // Sync terrain if peer sent their terrain choice
+            if (data.terrain && data.terrain !== selectedTerrain) {
+              loadSelectedTerrain(data.terrain);
+              updateTerrainUISelection(data.terrain);
+            }
+
+            spawnSoldierEntity(data);
+            addKillFeed(`${data.name} entered arena`, '', false);
+
+            sendP2P({
+              type: 'p2p_intro_reply',
+              id: selfId,
+              name: selfName,
+              x: camera.position.x,
+              y: camera.position.y,
+              z: camera.position.z,
+              yaw: camera.rotation.y,
+              health: selfHealth
+            });
+            break;
+
+          case 'p2p_intro_reply':
+            spawnSoldierEntity(data);
+            break;
+
+          case 'p2p_terrain_sync':
+            if (data.terrain && data.terrain !== selectedTerrain) {
+              loadSelectedTerrain(data.terrain);
+              updateTerrainUISelection(data.terrain);
+            }
+            break;
+
+          case 'p2p_move':
+            if (!remotePlayers.has(data.id)) {
+              spawnSoldierEntity(data);
+            }
+            const entity = remotePlayers.get(data.id);
+            if (entity) {
+              // Plant soldier feet on ground elevation
+              const groundY = getTerrainElevation(data.x, data.z);
+              entity.targetPos.set(data.x, groundY, data.z);
+              entity.targetYaw = data.yaw || 0;
+              entity.isMoving = !!data.isMoving;
+              entity.mesh.visible = true;
+            }
+            break;
+
+          case 'p2p_shoot':
+            renderLaserTracer(data.origin, data.hitPoint);
+            break;
+
+          case 'p2p_hit':
+            if (data.targetId === selfId) {
+              selfHealth = Math.max(0, selfHealth - (data.damage || 25));
+              updateLocalHealthUI();
+              flashDamageVignette();
+
+              sendP2P({
+                type: 'p2p_health_update',
+                id: selfId,
+                health: selfHealth
+              });
+
+              if (selfHealth <= 0 && !isDead) {
+                handleLocalPlayerDeath(data.shooterName || 'Enemy Soldier');
+              }
+            }
+            break;
+
+          case 'p2p_health_update':
+            const hurtEntity = remotePlayers.get(data.id);
+            if (hurtEntity) {
+              hurtEntity.health = data.health;
+              hurtEntity.plate.userData.updateHealth(hurtEntity.health / 100);
+              flashSoldierMesh(hurtEntity.mesh);
+            }
+            break;
+
+          case 'p2p_eliminated':
+            addKillFeed(data.killerName, data.victimName, true);
+            if (data.killerId === selfId) {
+              selfEliminations += 1;
+              document.getElementById('ui-eliminations').textContent = selfEliminations;
+            }
+            const victim = remotePlayers.get(data.victimId);
+            if (victim) {
+              victim.mesh.visible = false;
+            }
+            updateScoreboard();
+            break;
+
+          case 'p2p_respawn':
+            const respawned = remotePlayers.get(data.id);
+            if (respawned) {
+              const groundY = getTerrainElevation(data.x, data.z);
+              respawned.mesh.position.set(data.x, groundY, data.z);
+              respawned.mesh.visible = true;
+              respawned.health = 100;
+              respawned.plate.userData.updateHealth(1.0);
+            }
+            break;
+        }
+      }
+
+      function updateTerrainUISelection(terrainName) {
+        document.querySelectorAll('.terrain-btn').forEach((btn) => {
+          if (btn.getAttribute('data-terrain') === terrainName) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+      }
+
+      // ----------------------------------------------------
+      // BOT COMBATANTS (ALL USING USER'S SOLDIER SKIN)
+      // ----------------------------------------------------
+      const localBots = [
+        { id: 'bot_alpha', name: 'Echo-01', x: -16, y: 1.75, z: -18, yaw: 0, health: 100, eliminations: 0, isMoving: false, shootTimer: 2.0, targetX: 10, targetZ: -10 },
+        { id: 'bot_bravo', name: 'Echo-02', x: 22, y: 1.75, z: -14, yaw: 0, health: 100, eliminations: 0, isMoving: false, shootTimer: 3.2, targetX: -15, targetZ: 15 }
+      ];
+
+      // Spawn bots immediately so arena is always active
+      localBots.forEach((bot) => spawnSoldierEntity(bot));
+
+      function updateLocalBotsAI(delta) {
+        localBots.forEach((bot) => {
+          const entity = remotePlayers.get(bot.id);
+          if (!entity || entity.health <= 0) return;
+
+          const dx = bot.targetX - entity.mesh.position.x;
+          const dz = bot.targetZ - entity.mesh.position.z;
+          const dist = Math.hypot(dx, dz);
+
+          if (dist < 2.0) {
+            bot.targetX = (Math.random() - 0.5) * (ARENA_SIZE - 40);
+            bot.targetZ = (Math.random() - 0.5) * (ARENA_SIZE - 40);
+            entity.isMoving = false;
+          } else {
+            entity.targetYaw = Math.atan2(dx, dz);
+            entity.targetPos.x += (dx / dist) * 5.5 * delta;
+            entity.targetPos.z += (dz / dist) * 5.5 * delta;
+            entity.targetPos.y = getTerrainElevation(entity.targetPos.x, entity.targetPos.z);
+            entity.isMoving = true;
+          }
+
+          bot.shootTimer -= delta;
+          const playerDist = Math.hypot(camera.position.x - entity.mesh.position.x, camera.position.z - entity.mesh.position.z);
+
+          if (bot.shootTimer <= 0 && playerDist < 35 && !isDead) {
+            bot.shootTimer = 2.5 + Math.random() * 2.5;
+            entity.targetYaw = Math.atan2(camera.position.x - entity.mesh.position.x, camera.position.z - entity.mesh.position.z);
+
+            const botMuzzle = new THREE.Vector3(entity.mesh.position.x, entity.mesh.position.y + 1.2, entity.mesh.position.z);
+            const aimTarget = new THREE.Vector3(
+              camera.position.x + (Math.random() - 0.5) * 1.5,
+              camera.position.y - 0.2 + (Math.random() - 0.5) * 0.8,
+              camera.position.z + (Math.random() - 0.5) * 1.5
+            );
+
+            renderLaserTracer(botMuzzle, aimTarget);
+
+            if (playerDist < 25 && Math.random() < 0.45) {
+              selfHealth = Math.max(0, selfHealth - 20);
+              updateLocalHealthUI();
+              flashDamageVignette();
+
+              if (selfHealth <= 0 && !isDead) {
+                handleLocalPlayerDeath(bot.name);
+              }
+            }
+          }
+        });
+      }
+
+      function flashDamageVignette() {
+        const overlay = document.getElementById('damage-overlay');
+        overlay.classList.add('damaged');
+        setTimeout(() => overlay.classList.remove('damaged'), 180);
+      }
+
+      function flashSoldierMesh(mesh) {
+        mesh.traverse((c) => {
+          if (c.isMesh && c.material) {
+            const origColor = c.material.color.getHex();
+            c.material.color.setHex(0xff3344);
+            setTimeout(() => {
+              c.material.color.setHex(origColor);
+            }, 80);
+          }
+        });
+      }
+
+      function updateLocalHealthUI() {
+        const healthEl = document.getElementById('ui-health');
+        const barFill = document.getElementById('ui-health-bar');
+        healthEl.textContent = selfHealth;
+        barFill.style.width = selfHealth + '%';
+
+        if (selfHealth <= 25) {
+          healthEl.classList.add('low');
+          barFill.style.background = '#ff3344';
+          barFill.style.boxShadow = '0 0 8px #ff3344';
+        } else {
+          healthEl.classList.remove('low');
+          barFill.style.background = '#00ff88';
+          barFill.style.boxShadow = '0 0 6px #00ff88';
+        }
+      }
+
+      function handleLocalPlayerDeath(killerName) {
+        isDead = true;
+        const deathOverlay = document.getElementById('death-overlay');
+        const timerText = document.getElementById('respawn-timer-text');
+        deathOverlay.style.display = 'flex';
+
+        sendP2P({
+          type: 'p2p_eliminated',
+          victimId: selfId,
+          victimName: selfName,
+          killerId: 'killer',
+          killerName: killerName
+        });
+
+        addKillFeed(killerName, selfName, true);
+
+        let count = 3;
+        timerText.textContent = `Respawning in ${count}s...`;
+        const interval = setInterval(() => {
+          count--;
+          if (count > 0) {
+            timerText.textContent = `Respawning in ${count}s...`;
+          } else {
+            clearInterval(interval);
+            isDead = false;
+            selfHealth = 100;
+            updateLocalHealthUI();
+
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 14 + Math.random() * 22;
+            camera.position.x = Math.cos(angle) * dist;
+            camera.position.z = Math.sin(angle) * dist;
+            camera.position.y = getTerrainElevation(camera.position.x, camera.position.z) + PLAYER_HEIGHT;
+
+            deathOverlay.style.display = 'none';
+
+            sendP2P({
+              type: 'p2p_respawn',
+              id: selfId,
+              x: camera.position.x,
+              y: camera.position.y,
+              z: camera.position.z
+            });
+          }
+        }, 1000);
+      }
+
+      function addKillFeed(killer, victim, isKill) {
+        const feed = document.getElementById('kill-feed');
+        const entry = document.createElement('div');
+        entry.className = 'kill-feed-entry';
+
+        if (isKill) {
+          entry.innerHTML = `<span class="killer">${killer}</span> eliminated <span class="victim">${victim}</span>`;
+        } else {
+          entry.innerHTML = `<span>${killer}</span>`;
+        }
+
+        feed.appendChild(entry);
+        setTimeout(() => {
+          entry.remove();
+        }, 4000);
+      }
+
+      function updateScoreboard() {
+        const tbody = document.getElementById('scoreboard-body');
+        tbody.innerHTML = '';
+
+        const selfRow = document.createElement('tr');
+        selfRow.className = 'self';
+        selfRow.innerHTML = `
+          <td>${selfName} (You)</td>
+          <td>${isDead ? 'RESPAWNING' : 'ACTIVE'}</td>
+          <td style="text-align: right;">${selfEliminations}</td>
+        `;
+        tbody.appendChild(selfRow);
+
+        remotePlayers.forEach((p) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${p.data.name}</td>
+            <td>${p.health <= 0 ? 'ELIMINATED' : 'ACTIVE'}</td>
+            <td style="text-align: right;">${p.data.eliminations || 0}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      // ----------------------------------------------------
+      // SHOOTING & NEON LASER TRACER MECHANICS
+      // ----------------------------------------------------
+      const raycaster = new THREE.Raycaster();
+      const screenCenter = new THREE.Vector2(0, 0);
+
+      function shootWeapon() {
+        if (isDead) return;
+        triggerRecoil();
+
+        raycaster.setFromCamera(screenCenter, camera);
+
+        const shootables = [...terrainMeshes];
+        obstacleColliders.forEach(c => shootables.push(c.mesh));
+        remotePlayers.forEach((p) => {
+          if (p.health > 0) shootables.push(p.mesh);
+        });
+
+        const intersects = raycaster.intersectObjects(shootables, true);
+
+        let hitPoint = null;
+        let hitPlayerId = null;
+
+        if (intersects.length > 0) {
+          hitPoint = intersects[0].point;
+          const hitObj = intersects[0].object;
+
+          remotePlayers.forEach((p, id) => {
+            if (p.mesh === hitObj || isDescendantOf(hitObj, p.mesh)) {
+              hitPlayerId = id;
+            }
+          });
+        } else {
+          hitPoint = new THREE.Vector3();
+          raycaster.ray.at(100, hitPoint);
+        }
+
+        const localMuzzle = new THREE.Vector3(0.28, -0.20, -0.9);
+        camera.localToWorld(localMuzzle);
+        const origin = localMuzzle;
+
+        renderLaserTracer(origin, hitPoint);
+
+        sendP2P({
+          type: 'p2p_shoot',
+          id: selfId,
+          origin: { x: origin.x, y: origin.y, z: origin.z },
+          hitPoint: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }
+        });
+
+        if (hitPlayerId) {
+          const targetEntity = remotePlayers.get(hitPlayerId);
+          if (targetEntity && targetEntity.health > 0) {
+            targetEntity.health = Math.max(0, targetEntity.health - 25);
+            targetEntity.plate.userData.updateHealth(targetEntity.health / 100);
+            flashSoldierMesh(targetEntity.mesh);
+
+            sendP2P({
+              type: 'p2p_hit',
+              targetId: hitPlayerId,
+              damage: 25,
+              shooterId: selfId,
+              shooterName: selfName
+            });
+
+            if (targetEntity.health <= 0) {
+              selfEliminations += 1;
+              document.getElementById('ui-eliminations').textContent = selfEliminations;
+
+              sendP2P({
+                type: 'p2p_eliminated',
+                victimId: hitPlayerId,
+                victimName: targetEntity.data.name,
+                killerId: selfId,
+                killerName: selfName
+              });
+
+              addKillFeed(selfName, targetEntity.data.name, true);
+              targetEntity.mesh.visible = false;
+
+              if (localBots.some(b => b.id === hitPlayerId)) {
+                setTimeout(() => {
+                  const angle = Math.random() * Math.PI * 2;
+                  const dist = 14 + Math.random() * 20;
+                  targetEntity.targetPos.x = Math.cos(angle) * dist;
+                  targetEntity.targetPos.z = Math.sin(angle) * dist;
+                  targetEntity.targetPos.y = getTerrainElevation(targetEntity.targetPos.x, targetEntity.targetPos.z);
+                  targetEntity.health = 100;
+                  targetEntity.plate.userData.updateHealth(1.0);
+                  targetEntity.mesh.visible = true;
+                }, 4000);
+              }
+            }
+          }
+        }
+      }
+
+      function isDescendantOf(obj, parent) {
+        let curr = obj;
+        while (curr) {
+          if (curr === parent) return true;
+          curr = curr.parent;
+        }
+        return false;
+      }
+
+      function renderLaserTracer(origin, target) {
+        const oVec = new THREE.Vector3(origin.x, origin.y, origin.z);
+        const tVec = new THREE.Vector3(target.x, target.y, target.z);
+
+        const dir = new THREE.Vector3().subVectors(tVec, oVec);
+        const dist = dir.length();
+        const midPoint = new THREE.Vector3().addVectors(oVec, tVec).multiplyScalar(0.5);
+
+        const laserGeo = new THREE.CylinderGeometry(0.035, 0.035, dist, 8);
+        const laserMat = new THREE.MeshBasicMaterial({
+          color: 0x00f0ff,
+          transparent: true,
+          opacity: 0.95
+        });
+        const laserMesh = new THREE.Mesh(laserGeo, laserMat);
+
+        laserMesh.position.copy(midPoint);
+        laserMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+        scene.add(laserMesh);
+
+        const flashLight = new THREE.PointLight(0x00f0ff, 4.0, 12);
+        flashLight.position.copy(oVec);
+        scene.add(flashLight);
+
+        setTimeout(() => {
+          scene.remove(laserMesh);
+          scene.remove(flashLight);
+          laserGeo.dispose();
+          laserMat.dispose();
+        }, 45);
+
+        createImpactSpark(tVec);
+      }
+
+      function createImpactSpark(pos) {
+        const sparkGeo = new THREE.SphereGeometry(0.2, 8, 8);
+        const sparkMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+        const spark = new THREE.Mesh(sparkGeo, sparkMat);
+        spark.position.copy(pos);
+        scene.add(spark);
+
+        setTimeout(() => {
+          scene.remove(spark);
+          sparkGeo.dispose();
+          sparkMat.dispose();
+        }, 90);
+      }
+
+      // ----------------------------------------------------
+      // UI LISTENERS & CONTROLS
+      // ----------------------------------------------------
+      let isPointerLocked = false;
+      let pitch = 0;
+      let yaw = 0;
+
+      const splashOverlay = document.getElementById('splash-overlay');
+      const nameInput = document.getElementById('player-name-input');
+      const playBtn = document.getElementById('play-button');
+      const scoreboard = document.getElementById('scoreboard');
+
+      // Terrain Selector Buttons
+      document.querySelectorAll('.terrain-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.terrain-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const terrainFile = btn.getAttribute('data-terrain');
+          loadSelectedTerrain(terrainFile);
+
+          // Broadcast terrain choice to connected peer
+          sendP2P({
+            type: 'p2p_terrain_sync',
+            terrain: terrainFile
+          });
+        });
+      });
+
+      // Tab switching
+      const tabHostBtn = document.getElementById('tab-host-btn');
+      const tabJoinBtn = document.getElementById('tab-join-btn');
+      const paneHost = document.getElementById('pane-host');
+      const paneJoin = document.getElementById('pane-join');
+
+      tabHostBtn.addEventListener('click', () => {
+        tabHostBtn.classList.add('active');
+        tabJoinBtn.classList.remove('active');
+        paneHost.classList.add('active');
+        paneJoin.classList.remove('active');
+      });
+
+      tabJoinBtn.addEventListener('click', () => {
+        tabJoinBtn.classList.add('active');
+        tabHostBtn.classList.remove('active');
+        paneJoin.classList.add('active');
+        paneHost.classList.remove('active');
+      });
+
+      // Copy Offer Code
+      document.getElementById('copy-offer-btn').addEventListener('click', () => {
+        const val = document.getElementById('host-offer-textarea').value;
+        if (val) {
+          navigator.clipboard.writeText(val).then(() => {
+            const btn = document.getElementById('copy-offer-btn');
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = '📋 Copy Code'; }, 1800);
+          });
+        }
+      });
+
+      document.getElementById('connect-answer-btn').addEventListener('click', () => {
+        acceptJoineeAnswer();
+      });
+
+      document.getElementById('generate-answer-btn').addEventListener('click', () => {
+        createJoineeAnswer();
+      });
+
+      document.getElementById('copy-answer-btn').addEventListener('click', () => {
+        const val = document.getElementById('join-answer-textarea').value;
+        if (val) {
+          navigator.clipboard.writeText(val).then(() => {
+            const btn = document.getElementById('copy-answer-btn');
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = '📋 Copy Code'; }, 1800);
+          });
+        }
+      });
+
+      playBtn.addEventListener('click', () => {
+        if (nameInput.value.trim()) {
+          selfName = nameInput.value.trim().substring(0, 14);
+        }
+        document.body.requestPointerLock();
+      });
+
+      document.addEventListener('pointerlockchange', () => {
+        if (document.pointerLockElement === document.body) {
+          isPointerLocked = true;
+          splashOverlay.style.opacity = '0';
+          setTimeout(() => { splashOverlay.style.display = 'none'; }, 250);
+        } else {
+          isPointerLocked = false;
+          splashOverlay.style.display = 'flex';
+          setTimeout(() => { splashOverlay.style.opacity = '1'; }, 10);
+        }
+      });
+
+      document.addEventListener('mousemove', (event) => {
+        if (!isPointerLocked || isDead) return;
+
+        const movementX = event.movementX || 0;
+        const movementY = event.movementY || 0;
+
+        yaw -= movementX * MOUSE_SENSITIVITY;
+        pitch -= movementY * MOUSE_SENSITIVITY;
+
+        const maxPitch = Math.PI / 2 - 0.05;
+        pitch = Math.max(-maxPitch, Math.min(maxPitch, pitch));
+
+        camera.rotation.set(pitch, yaw, 0, 'YXZ');
+      });
+
+      window.addEventListener('mousedown', (event) => {
+        if (event.button === 0 && isPointerLocked) {
+          shootWeapon();
+        }
+      });
+
+      const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, ShiftLeft: false, ShiftRight: false };
+
+      window.addEventListener('keydown', (e) => {
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+        if (e.code === 'Tab') {
+          e.preventDefault();
+          updateScoreboard();
+          scoreboard.style.display = 'block';
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+        if (e.code === 'Tab') {
+          scoreboard.style.display = 'none';
+        }
+      });
+
+      // ----------------------------------------------------
+      // CHARACTER MOVEMENT & SYNC
+      // ----------------------------------------------------
+      const playerVelocity = new THREE.Vector3();
+      let lastNetworkSync = 0;
+
+      function updatePlayerMovement(delta) {
+        if (!isPointerLocked || isDead) return;
+
+        const isSprinting = keys.ShiftLeft || keys.ShiftRight;
+        const speed = MOVE_SPEED * (isSprinting ? SPRINT_MULTIPLIER : 1.0);
+
+        const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+        const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+        const moveInput = new THREE.Vector3();
+        if (keys.KeyW) moveInput.add(forward);
+        if (keys.KeyS) moveInput.sub(forward);
+        if (keys.KeyD) moveInput.add(right);
+        if (keys.KeyA) moveInput.sub(right);
+
+        const isMoving = moveInput.lengthSq() > 0;
+        if (isMoving) moveInput.normalize();
+
+        const targetVelX = moveInput.x * speed;
+        const targetVelZ = moveInput.z * speed;
+
+        const damping = Math.min(1.0, FRICTION * delta);
+        playerVelocity.x += (targetVelX - playerVelocity.x) * damping;
+        playerVelocity.z += (targetVelZ - playerVelocity.z) * damping;
+
+        const nextX = camera.position.x + playerVelocity.x * delta;
+        const nextZ = camera.position.z + playerVelocity.z * delta;
+
+        const playerRadius = 0.8;
+        let allowX = true, allowZ = true;
+
+        for (let i = 0; i < obstacleColliders.length; i++) {
+          const col = obstacleColliders[i];
+          if (Math.hypot(nextX - col.x, nextZ - col.z) < col.radius + playerRadius) {
+            if (Math.hypot(nextX - col.x, camera.position.z - col.z) < col.radius + playerRadius) allowX = false;
+            if (Math.hypot(camera.position.x - col.x, nextZ - col.z) < col.radius + playerRadius) allowZ = false;
+          }
+        }
+
+        if (allowX) camera.position.x = nextX;
+        if (allowZ) camera.position.z = nextZ;
+
+        const bound = HALF_ARENA - 2.5;
+        camera.position.x = Math.max(-bound, Math.min(bound, camera.position.x));
+        camera.position.z = Math.max(-bound, Math.min(bound, camera.position.z));
+
+        const groundElevation = getTerrainElevation(camera.position.x, camera.position.z);
+        const targetPlayerY = groundElevation + PLAYER_HEIGHT;
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetPlayerY, Math.min(1.0, 14 * delta));
+
+        const currentSpeed = Math.hypot(playerVelocity.x, playerVelocity.z);
+        if (currentSpeed > 0.5) {
+          walkBobTimer += delta * (isSprinting ? 14 : 9);
+        } else {
+          walkBobTimer = THREE.MathUtils.lerp(walkBobTimer, 0, delta * 4);
+        }
+
+        // Send P2P movement update to connected peer (~25 Hz)
+        const now = performance.now();
+        if (now - lastNetworkSync > 40) {
+          lastNetworkSync = now;
+          sendP2P({
+            type: 'p2p_move',
+            id: selfId,
+            name: selfName,
+            x: Number(camera.position.x.toFixed(2)),
+            y: Number(camera.position.y.toFixed(2)),
+            z: Number(camera.position.z.toFixed(2)),
+            yaw: Number(yaw.toFixed(3)),
+            isMoving: isMoving
+          });
+        }
+      }
+
+      // ----------------------------------------------------
+      // ANIMATION & GAME LOOP
+      // ----------------------------------------------------
+      const clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = Math.min(clock.getDelta(), 0.1);
+
+        updatePlayerMovement(delta);
+        updateLocalBotsAI(delta);
+
+        recoilOffset.lerp(new THREE.Vector3(0, 0, 0), 14 * delta);
+        recoilRotation.lerp(new THREE.Vector3(0, 0, 0), 14 * delta);
+
+        const bobX = Math.cos(walkBobTimer * 0.5) * 0.012;
+        const bobY = Math.sin(walkBobTimer) * 0.014;
+
+        weaponRig.position.set(
+          restPosition.x + bobX + recoilOffset.x,
+          restPosition.y + bobY + recoilOffset.y,
+          restPosition.z + recoilOffset.z
+        );
+
+        weaponRig.rotation.set(
+          restRotation.x - recoilRotation.x,
+          restRotation.y + recoilRotation.y,
+          restRotation.z + recoilRotation.z
+        );
+
+        // Update Remote Soldier Entities
+        remotePlayers.forEach((p) => {
+          if (!p.mesh.visible) return;
+
+          // Smooth lerp to latest target position
+          p.mesh.position.lerp(p.targetPos, 14 * delta);
+          p.mesh.rotation.y = THREE.MathUtils.lerp(p.mesh.rotation.y, p.targetYaw, 14 * delta);
+
+          p.plate.lookAt(camera.position);
+
+          if (p.isMoving) {
+            p.mesh.userData.walkAnimTimer += delta * 10;
+            p.mesh.position.y = p.targetPos.y + Math.abs(Math.sin(p.mesh.userData.walkAnimTimer)) * 0.08;
+            p.mesh.rotation.z = Math.sin(p.mesh.userData.walkAnimTimer) * 0.04;
+          } else {
+            p.mesh.rotation.z = 0;
+          }
+        });
+
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Auto-generate Host Offer on startup
+      createHostOffer();
+      animate();
+
+    })();
+  </script>
+</body>
+</html>
